@@ -13,6 +13,7 @@
 #define STRINGIFY_MACRO(n) STRINGIFY(n)
 #define APP_NAME STRINGIFY_MACRO(A_NAME)
 
+#define arrayCount(array) (sizeof(array) / sizeof((array)[0]))
 typedef unsigned char uchar;
 
 #include "createIcon.cpp"
@@ -35,8 +36,10 @@ int main(int argc, char** argv) {
 
 	if(printUsage) {
 		printf("\n");
-		printf("Usage: %s.exe image_path exe_path [-s size1 size2 ...]", APP_NAME);
-		printf("\n\n");
+		printf("Usage: %s.exe image_path exe_path  [-s size1 size2 ...] |\n", APP_NAME);
+		printf("       %s.exe image_path icon_path [-s size1 size2 ...] |\n", APP_NAME);
+		printf("       %s.exe icon_path  exe_path\n", APP_NAME);
+		printf("\n");
 		printf(" Creates an icon file from an image and sets it on an exe.\n");
 		printf(" Icons are stored in 32bit.\n");
 		printf("\n");
@@ -52,7 +55,7 @@ int main(int argc, char** argv) {
 
 	if(argc >= 3) {
 		char* arg = argv[3];
-		if(!strstr("-s", arg)) {
+		if(!strstr(arg, "-s")) {
 			printf("\nError: Unknown argument \"%s\".\n", arg);
 			return 0;
 		}
@@ -85,15 +88,80 @@ int main(int argc, char** argv) {
 		qsort(sizes, sizeCount, sizeof(int), cmp);
 	}
 
-	char* imagePath = (char*)argv[1];
-	char* iconPath  = (char*)argv[2];
+	char* srcPath = (char*)argv[1];
+	char* dstPath = (char*)argv[2];
 
-	char* iconData;
-	int size = createIcoFileFromBitmapFilename(imagePath, sizes, sizeCount, &iconData); 
-	if(!size) return 0;
+	bool srcIsIcon = strstr(srcPath, ".ico");
+	bool dstIsIcon = strstr(dstPath, ".ico");
+	bool dstIsExe  = strstr(dstPath, ".exe");
 
-	bool result = setIconByData(iconPath, iconData);
-	if(!result) return 0;
+	bool srcIsImage = false;
+	char* imageExtensions[] = {".jpg", ".png", ".bmp", ".psd", ".tga", ".gif", ".pic", ".ppm", ".pgm"};
+	for(int i = 0; i < arrayCount(imageExtensions); i++) {
+		if(strstr(srcPath, imageExtensions[i])) {
+			srcIsImage = true;
+			break;
+		}
+	}
+
+	int mode;
+	if(srcIsImage && dstIsExe) {
+		// Create and set icon.
+
+		char* iconData;
+		int size = createIcoFileFromBitmapFilename(srcPath, sizes, sizeCount, &iconData); 
+		if(!size) return 0;
+
+		bool result = setIconByData(dstPath, iconData);
+		if(!result) return 0;
+
+	} else if(srcIsImage && dstIsIcon) {
+		// Create icon.
+
+		if(!srcIsImage) {
+			printf("\nError: %s is not an image file.\n", srcPath);
+			return 0;
+		}
+
+		char* iconData;
+		int size = createIcoFileFromBitmapFilename(srcPath, sizes, sizeCount, &iconData); 
+		if(!size) return 0;
+
+		FILE* file = fopen(dstPath, "wb");
+		if(!file) {
+			printf("\nError: Could not create icon file %s.\n", dstPath);
+			return 0;
+		}
+
+		fwrite(iconData, size, 1, file);
+		fclose(file);
+
+	} else if(srcIsIcon && dstIsExe) {
+		// Set icon.
+
+		FILE* file = fopen(srcPath, "rb");
+		if(file == 0) {
+			printf("\nError: Could not open icon file %s.\n", srcPath);
+			return 0;
+		}
+
+		fseek(file, 0, SEEK_END);
+		int size = ftell(file);
+		fseek(file, 0, SEEK_SET);
+
+		char* iconData = (char*)malloc(sizeof(char)*size);
+		fread(iconData, size, 1, file);
+
+		fclose(file);
+
+		bool result = setIconByData(dstPath, iconData);
+		if(!result) return 0;
+
+	} else {
+		printf("\nError: Invalid files.\n");
+		printf(" Possible combinations: image exe | image icon | icon exe.\n");
+		return 0;
+	}
 
 	return 0;
 }

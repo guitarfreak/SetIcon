@@ -1,5 +1,7 @@
-Usage: seticon.exe image_path exe_path [-s size1 size2 ...]
-
+Usage: seticon.exe image_path exe_path  [-s size1 size2 ...]
+       seticon.exe image_path icon_path [-s size1 size2 ...]
+       seticon.exe icon_path  exe_path
+	   
  Creates an icon file from an image and sets it on an exe.
  Icons are stored in 32bit.
 
